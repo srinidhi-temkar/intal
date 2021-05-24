@@ -1,0 +1,643 @@
+                            Mini-Project Report
+              Design And Analysis of Algorithms - UE18CS251
+    To develop a C library for integers of arbitrary length (intal).
+
+================================================================================
+
+TABLE OF CONTENTS
+
+0. IMPORTANT NOTES
+
+1. INTRODUCTION
+  1.1. What is 'intal'?
+  1.2. Comparison with Existing Integer Data Types in C	
+  1.3. Declaring and Defining an intal
+  1.4. Applications of 'intal'
+
+2. APPROACH
+  2.1. Supported Functions
+    2.1.1. Addition
+    2.1.2. Compare
+    2.1.3. Subtraction / Absolute difference
+    2.1.4. Multiplication
+    2.1.5. Modulo / Remainder
+    2.1.6. Power
+    2.1.7. GCD / HCF
+    2.1.8. Fibonacci Number
+    2.1.9. Factorial
+    2.1.10. Binomial Coefficient
+    2.1.11. Maximum Element 
+    2.1.12. Minimum Element
+    2.1.13. Search in Array
+    2.1.14. Binary Search in Sorted Array
+    2.1.15. Sort an Array
+    2.1.16. Coin Row Problem
+  2.2. Additional static helper functions used 
+    2.2.1. static char* set_intal_zero();
+    2.2.2. static char* set_intal_one();
+    2.2.3. static char* intal_copy(const char *intal);
+    2.2.4. static int get_value(const char *intal, int len, int index);
+    2.2.5. static char* strip_leading_zeroes(char *nintal, int size);
+    2.2.6. static char* intal_by_two(const char *intal);
+    2.2.7. static void merge(char **arr, int l, int m, int r);
+    2.2.8. static void merge_sort(char **arr, int l, int r);
+
+3. FUTURE WORK
+  3.1. Additional Functionalities 
+  3.2. Different Approaches
+
+********************************************************************************
+
+0. IMPORTANT NOTES: 
+
+  i) intal in this library has a minimum value of 0 and its max 
+    value is not precisely defined, and it is depends on the memory allocated 
+    during its definition.     
+    
+  ii) All intal functions, except the 'coin_row_problem', defined in this 
+    library support an undefined max value. The values of the intals in the 
+    input argument array to the 'coin_row_problem' function have to be lesser 
+    than 10^1000, i.e., a max memory of 1001*sizeof(char) bytes. The other 
+    functions support even larger intals, even greater than 10^1000, but it 
+    also dependent on the executing machine.
+    
+  iii) This library tries to minimize the heap memory allocated as much as 
+    possible during the run-time i.e., while running any of the pre-defined 
+    library functions. This is done in a balanced way so as not to affect the 
+    time taken for the execution due to larger number of memory allocation and 
+    deallocation processes.
+    
+    For example, if the 2 input intals to the 'intal_diff' function are 
+    dynamically allocated a memory of 1001*sizeof(char) bytes and the intals are 
+    "1000" and "999", a lot of memory is wasted as 1000 requires only a minimum 
+    of 5 bytes and 999 requires a minimum of 4 bytes (extra byte to account for 
+    null character). To avoid wastage of memory, the output of the 'intal_diff' 
+    function will be "1", with only a memory of 2 bytes. 
+    
+    This leads to exceptionally low memory required during run-time.
+    Tested extensively on ubuntu 20.04 using the massif tool provided by 
+    valgrind 3.15.0.
+    
+  iv) There are zero memory leaks during execution of any of the library 
+    function i.e., all memory allocated is freed except if that memory block is 
+    returned by the function. Additionally, as mentioned in point iii) even 
+    parts of memory allocated during execution, which are not required is freed 
+    in a different way (not directly using 'free' function).
+    For example, if any function is supposed to return an intal of "123", it 
+    will always occupy exactly 4 bytes, 3 for the digit characters and the other 
+    for null character. It will always be `123\0` and never something like 
+    `123\0\0\0...`, or `123\09@#%7&@!^...`, etc.
+    Same is extended to intals of all lengths.
+
+    Tested extensively on ubuntu 20.04 using the memcheck tool provided by 
+    valgrind 3.15.0.
+
+********************************************************************************
+
+1. INTRODUCTION
+
+  1.1. What is 'intal'?
+
+    'intal' stands for integer (non-negative) data type of arbitrary length. 
+    An intal is stored as a null-terminated string of ASCII characters. It is 
+    represented as a string of decimal digits ('0' to '9') which are stored in 
+    big-endian style i.e., the most significant digit is at the head of the 
+    string. 
+
+    For example, the integer 1234 is stored as a string (array of characters) as 
+    {'1', '2', '3', '4', '\0'} i.e., '1' is at 0th index, '2' is at 1st index, 
+    and so on with the null character ('\0') at the last index position.
+
+    Some additional properties of a valid intal: 
+    a) The string representation of the intal should not have any leading 
+    zeroes, except in the case of intal "0", which represents the integer 0.
+    b) It must have at least a digit and null termination i.e., the minimum size 
+    of an intal is 2 bytes, with the first byte being a digit character and the 
+    second one being the null character.
+
+  ------------------------------------------------------------------------------
+
+  1.2. Comparison with Existing Integer Data Types in C	
+
+    It is important to note that unlike the other integer data types in C, intal 
+    supports only non-negative integers, which means "-1234" is not a valid 
+    intal. 
+    
+    The basic data types in C, which are the arithmetic types are classified 
+    into a)integer types and b)floating-point types.
+    The standard integer types, along with their storage sizes in C are [1]:
+    char           : 1 byte
+    unsigned char  : 1 byte
+    signed char    : 1 byte
+    int            : 2 or 4 bytes
+    unsigned int   : 2 or 4 bytes
+    short          : 2 bytes
+    unsigned short : 2 bytes
+    long           : 8 bytes
+    unsigned long  : 8 bytes
+
+    Similar to the the above data type, intal can be thought of as another data 
+    type to store integers. The difference is that intal does not have a fixed 
+    storage size and supports integers of arbitrary length, whereas the above 
+    mentioned data types have a fixed storage size which leads to each of them 
+    having a maximum and minimum cap to the value that can be stored by them. 
+    For example, if 'int' is stored as 4 bytes, then its min value is 
+    -2147483648 and max value is 2147483648. 
+
+    [See section 0. for minimum and maximum values of intal]
+  ------------------------------------------------------------------------------
+  
+  1.3. Declaring and Defining an intal
+
+    The length of an intal can be specified in its definition. There are two 
+    ways to allocate memory for an intal:
+    a) Static allocation
+        Eg: char intal1[6];
+    b) Dynamic allocation
+        Eg: char *intal2 = (char*)malloc(6 * sizeof(char));
+    In static allocation, memory is allocated in the stack at compile time, 
+    while in dynamic allocation it is allocated in the heap at run-time.
+
+    Note: While allocating memory, keep in mind that each intal must have a 
+    null character at the end.
+
+  ------------------------------------------------------------------------------
+  
+  1.4. Applications of 'intal'
+      a) This library finds its applications in the fields of cryptography 
+      in ecrypting data and providing maximum security.
+      b) In scientific calculations which involve very large numbers, where it
+      can be used to represent the mass of celestial objects, the neuron 
+      connections in the human body,etc.
+      c) Finding facotrials of large numbers, like 500!, which has over a 
+      thousand digits!
+      d) To generate very high resolution timestamps.
+
+================================================================================
+
+2. APPROACH
+
+  2.1. This library supports the usage of the following functions:
+
+    2.1.1. Addition
+       
+      Signature: char* intal_add(const char* intal1, const char* intal2);
+      
+      Input Parameter(s)  : Two valid intals
+      Output Return Value : An intal representing sum of the two input intals
+
+      Approach: 
+        Similar to performing addition using pen and paper.
+        A 'char *result' pointer, representing an intal, is allocated memory of 
+        bytes equal to 2 + the length of the longer of the two input intals. 
+        The additional 2 bytes are for the last carry, when the result is longer 
+        than input either of the input intals (Eg: "40" + "60" = "100"), and the 
+        null termination. 
+        A for loop is initiated, which iterates over the characters of the two 
+        intals using get_value function [See 2.2.4.] from the end towards the 
+        head. The two characters are converted into integers and are added along 
+        with the previous carry if any, providing sum and carry digits. The sum 
+        digit is stored in the appropriate position in the result and the carry 
+        is carried forward to the next digit addition.
+        At the end, after the loop terminates, the last carry is stored in the 
+        0th index of the result.
+        This last carry may be 0, hence to return a valid intal, the leading 
+        zeroes are stripped using strip_leading_zeroes function [See 2.2.5.].
+
+    ----------------------------------------------------------------------------
+
+    2.1.2. Compare
+       
+      Signature: int intal_compare(const char* intal1, const char* intal2);
+      
+      Input Parameter(s)  : Two valid intals
+      Output Return Value : int 0 if the input intals are equal in value
+                            int 1 if intal1 is greater than intal2
+                            int 2 if intal1 is lesser than intal2
+
+      Approach: 
+        First, the lengths of the two input intals are compared. If they are 
+        unequal, and if the first intal is longer, then 1 is returned or if the 
+        second intal is longer, then -1 is returned.
+        If the lengths happen to be equal, then a for loop is initiated which 
+        compares the characters at the same index (from left to right) of both 
+        the intals. If at any time the character in intal1 is greater, then 1 is 
+        returned, else if that in intal2 is greater, then -1 is returned.
+        If the for loops terminates without returning anything, then it means 
+        that both the intals are equal and 0 is returned. 
+        
+    ----------------------------------------------------------------------------
+
+    2.1.3. Subtraction / Absolute difference
+
+      Signature: char* intal_diff(const char* intal1, const char* intal2);
+      
+      Input Parameter(s)  : Two valid intals
+      Output Return Value : An intal representing absolute difference of the two 
+                            input intals
+
+      Approach: 
+        Similar to performing subtraction using pen and paper.
+        The intal1 parameter is assumed to be greater than intal2. If it is not 
+        the case the pointers pointing to these 2 intals are interchanged using 
+        a temp pointer. The comparison is made using intal_compare [See 2.1.2.].
+        A 'char *result' pointer, representing an intal, is allocated memory of 
+        bytes equal to 1 + the length of the longer of the two input intals. The 
+        additional byte is for the null termination character.
+        A for loop is initiated, which iterates over the characters of the two 
+        intals using get_value function [See 2.2.4.] from the end towards the 
+        head. The two characters are converted into integers and are subtracted
+        along with the previous borrow if any, providing diff and borrow digits. 
+        The diff digit is stored in the appropriate position in the result and 
+        the borrow is carried forward to the next digit subtraction.
+        As intal1 is (made to be) greater of the two, at the end, there will be 
+        no borrow.
+        However, for subtractions like "10000" - "9999", there will be leading 
+        zeroes, which are stripped using strip_leading_zeroes function 
+        [See 2.2.5.].
+
+     ----------------------------------------------------------------------------
+
+    2.1.4. Multiplication
+
+      Signature: char* intal_multiply(const char* intal1, const char* intal2);
+      
+      Input Parameter(s)  : Two valid intals
+      Output Return Value : An intal representing product of the two input intals
+
+      Approach: 
+        Similar to performing multiplication using pen and paper.
+        A 'char *result' pointer, representing an intal, is allocated memory of 
+        bytes equal to 1 + the length of intal1 + length of intal2 (not 
+        including the null characters) and initiated with zeroes. 
+        This is because the product can contain at most those many characters, 
+        including the null termination character.
+        A for loop is initiated and a digit character is obtained from the first 
+        intal using get_value function [See 2.2.4.]. Another for loop is 
+        initiated inside the first one and each of the digits of the second 
+        intal are multiplied to the digit obtained in outer for loop and place 
+        at the appropriate position in the result. In each step, the digit that 
+        existed previously in the particular result position is also added. 
+        At the end, the result is stripped off of leading zeroes using 
+        strip_leading_zeroes function [See 2.2.5.] and returned.
+
+    ----------------------------------------------------------------------------
+
+    2.1.5. Modulo / Remainder
+
+      Signature: char* intal_mod(const char* intal1, const char* intal2);
+      
+      Input Parameter(s)  : Two valid intals
+      Output Return Value : An intal representing intal1 modulo intal2 i.e., 
+                            remainder left after dividing intal1 by intal2
+
+      Approach: 
+        a) Divide and conquer using Binary Search algorithm. (Implemented, but
+        not Used) (Please check the PES1201800255.c file for the implementation)
+        Signature: char* intal_mod_bs(const char* intal1, const char* intal2);
+        It performs log(intal1) subtractions to obtain the result. It uses the 
+        approach of finding the quotient between 1 and intal1 (dividend) using 
+        binary search, which will give a remainder of lesser than intal2 
+        (divisor) but greater than or equal to 0.
+        This approach is not used (notice _bs standing for binary search in 
+        function name) as it requires greater time for executin than apprach b.
+        
+        b) High school long division. (Used)
+        If the second intal is greater than first intal, then the first intal 
+        is copied using intal_copy function [See 2.2.3.] and returned.
+        A 'char *modded_divisor' pointer, representing an intal, is allocated 
+        memory of bytes equal to 1 + the length of intal1. The additional byte 
+        is for null termination character. The second intal is copied into this 
+        location using strcpy and the rest of the digits are set to '0'. 
+        A while loop is initated another while loop. The outer while loop is 
+        executed if index i (initiated with length of intal1) is greater than or
+        equal to the length of intal2. The inner while loop is executed if 
+        the dividend is greater than or equal to the modded_divisor using 
+        intal_compare function. Inside of this, modded divisor is repeatedly 
+        subtracted from dividend using a temp pointer, and the lenght of the 
+        modded_divisor is continuously reduced, mimicking the long division 
+        method. 
+        At the end, the new dividend is returned, which represents the 
+        remainder.
+
+    ----------------------------------------------------------------------------
+
+    2.1.6. Power
+
+      Signature: char* intal_pow(const char* intal1, unsigned int n);
+      
+      Input Parameter(s)  : A valid intal and an unsigned int
+      Output Return Value : An intal representing intal1^n i.e., power(intal1, n)
+
+      Approach: 
+        A O(log n) intal multiplications algorithm is implemented. 
+        If intal1 represents 0, then "0" is returned using set_intal_zero 
+        function [See 2.2.1.]. 
+        If n is 0 or if intal1 is 1, then "1" is retuned using set_intal_one 
+        function [See 2.2.2.].
+        A char* result is set to "1" using set_intal_one function.
+        A copy of intal1 is made using intal_copy [See 2.2.3.] and stored in 
+        temp_intal. A while loop is initiated with condition of n>0. If n is 
+        odd, then result is multiplied to the temp_intal. Then n is divided by 
+        2 and temp_intal is squared using intal_multiply function. 
+        At the end, the result is returned. 
+
+    ----------------------------------------------------------------------------
+
+    2.1.7. GCD / HCF
+
+      Signature: char* intal_gcd(const char* intal1, const char* intal2);
+      
+      Input Parameter(s)  : Two valid intals
+      Output Return Value : An intal representing gcd of intal1 and intal2
+
+      Approach: 
+        Uses iterative version of Euclid's Algorithm for finding GCD.
+        If both intal1 and intal2 are 0, "0" intal is returned using 
+        set_intal_zero function [See 2.2.1.].
+        Now, Euclids algorithm is implemented iteratively, using the copies of 
+        intal1 in a and intal2 in b using intal_copy [See 2.2.3.]. 
+        While b is not equal to "0" (using intal_compare [See 2.1.1.]), a mod b 
+        is stored in r (using intal_mod [See 2.1.5.]), a is made to point to b 
+        and a is freed, and finally b is made to point to r. 
+        At the end, a will have the required result and it is returned after 
+        freeing b.
+
+    ----------------------------------------------------------------------------
+
+    2.1.8. Fibonacci Number
+
+      Signature: char* intal_fibonacci(unsigned int n);
+      
+      Input Parameter(s)  : An unsigned int
+      Output Return Value : An intal representing the nth Fibonacci number
+
+      Approach: 
+        If n is 0, "0" is returned using the set_intal_zero helper function.
+        Initially, variable a is set to 0 and b is set to 1 using 
+        set_intal_zero and set_intal_zero helper functions [See sections 
+        2.2.1. and 2.2.2.].
+        A for loop is initiated with i from 2 to n (inclusive). In each 
+        iteration, a and b are added and stored in c using intal_add [See 
+        2.1.1.]. 
+        a is then made to point to b and the prev a is freed using temp pointer.
+        Then, b is made to point to c. 
+        This is repeated till the loop terminates, giving the answer in b. 
+        a is freed and b is returned.
+
+    ----------------------------------------------------------------------------
+
+    2.1.9. Factorial
+
+      Signature: char* intal_factorial(unsigned int n);
+      
+      Input Parameter(s)  : An unsigned int
+      Output Return Value : An intal representing the factorial of n
+
+      Approach: 
+        This function supports upto 9999!, which is actually a very large number 
+        and contains over 35000 digits (Tested successfully).
+        A char *result pointer is initated with "1" using set_intal_one function
+        A for loop is initiated with i ranging from 2 to n (inclusive), and in 
+        each iteration, intal version of i is multiplied with result. This uses
+        sprintf function to convert int to intal.
+        At the end, result is returned after freeing unrequired memories. 
+
+    ----------------------------------------------------------------------------
+
+    2.1.10. Binomial Coefficient
+
+      Signature: char* intal_bincoeff(unsigned int n, unsigned int k);
+      
+      Input Parameter(s)  : Two unsigned int's
+      Output Return Value : An intal representing the binomial coefficient of 
+                            n and k i.e., nCk or C(n, k)
+
+      Approach: 
+        Uses the Pascal's identity C(n,k) = C(n-1,k) + C(n-1,k-1)
+        Dynamic Programming is used, with addtional space of O(k).
+        The binomial coefficient is calculated using the concept of the pascal's
+        triangle by using a window of size k. If k is greater than n / 2, k is 
+        set to n - k to save time since n C k = n C (n - k). Each element of the
+        triangle array is an intal which is initialised to "0" and the first row
+        initialised to "1". In the Pascal's triangle, this means that the 
+        current term is equal to the sum of the 2 elements directly above it, 
+        i.e, elements at the jth and (j - 1)th index. The coefficients are 
+        calculated only upto k since after k, the coefficients would be repeated
+         which is not required.This algorithm takes O(n * k) time.
+
+    ----------------------------------------------------------------------------
+
+    2.1.11. Maximum Element 
+
+      Signature: int intal_max(char **arr, int n);
+      
+      Input Parameter(s)  : An array of intals and the length of the array
+      Output Return Value : An int representing the index of the first 
+                            occurrence of the greatest intal in the input array
+
+      Approach: 
+        The first element is assumed to be the maximum and its index is stored. 
+        In a while loop, each element is compared with the previous maximum 
+        element and if required a new maximum is set.
+        It uses intal_compare. in each iteration [See 2.1.2.]
+
+    ----------------------------------------------------------------------------
+
+    2.1.12. Minimum Element
+
+      Signature: int intal_min(char **arr, int n);
+      
+      Input Parameter(s)  : An array of intals and the length of the array
+      Output Return Value : An int representing the index of the first 
+                            occurrence of the lowest intal in the input array
+
+      Approach: 
+        The first element is assumed to be the minimum and its index is stored. 
+        In a while loop, each element is compared with the previous minimum 
+        element and if required a new minimum is set. 
+        It uses intal_compare. in each iteration [See 2.1.2.]
+
+    ----------------------------------------------------------------------------
+
+    2.1.13. Search in Array
+
+      Signature: int intal_search(char **arr, int n, const char* key);
+      
+      Input Parameter(s)  : An array of intals, the length of the array and a
+                            key intal
+      Output Return Value : An int representing the index of the first 
+                            occurrence of the key intal in the array
+
+      Approach: 
+        A for loop is initiated from i=0 to n-1, in which each iteration is used 
+        for comparing the element in the array with the key element using 
+        intal_compare [See 2.1.2.].
+        Once the key is found, the corresponding index i is returned. If the for 
+        loop terminates without, then it means that key is not found and -1 is 
+        returned.
+
+    ----------------------------------------------------------------------------
+
+    2.1.14. Binary Search in Sorted Array
+
+      Signature: int intal_binsearch(char **arr, int n, const char* key);
+      
+      Input Parameter(s)  : A sorted array of intals, the length of the array 
+                            and a key intal
+      Output Return Value : An int representing the index of the first 
+                            occurrence of the key intal in the sorted array
+
+      Approach:
+        Uses standard binary search algorithm.  
+        First we initialize the variable low=0, high=n-1 and mid. 
+        While low <= high, mid is calculated, then the key and arr[mid] are
+        compared. If equal, then result is set as mid, high as mid-1. 
+        intal_compare is used for these comparisons [See 2.1.2.]. 
+        If intal_compare returns 1, then low is set as mid+1. 
+        If it returns -1, then high is set as mid-1.
+        At the end, result is returned.        
+
+    ----------------------------------------------------------------------------
+
+    2.1.15. Sort an Array
+
+      Signature: void intal_sort(char **arr, int n);
+      
+      Input Parameter(s)  : An array of intals and the length of the array
+      Output Return Value : None
+
+      Approach: 
+        Standard merge sort is which uses divide and conquer strategy.
+        Here, we have two helper function one is merge_sort and another is 
+        merge [Sections 2.2.7. and 2.2.8.]. merge_sort takes the array, and the 
+        l and the r index, which are the left and right bounding indeces. Then, 
+        it starts dividing the array into two halves which are passed to 
+        merge_sort recursively.
+        This means that merge_sort is called till the size of each array 
+        becomes one then it calls the merge function which takes the sub-arrays 
+        and based on the arguents passed, it makes two sub-arrays, one from l to 
+        m and the other from m+1 to r. It starts comparing the elements of first 
+        subarray with the elements of the second from left to right; and based 
+        on the comparison the result is stored in the result arr. Once one of 
+        the array becomes empty the values from the other gets copied into the 
+        final result array.
+
+    ----------------------------------------------------------------------------
+
+    2.1.16. Coin Row Problem
+
+      Signature: char* coin_row_problem(char **arr, int n);
+      
+      Input Parameter(s)  : An array of intals and the length of the array
+      Output Return Value : An intal representing the solution to the coin row 
+                            problem for the given array
+
+      Approach: 
+        The coin row problem is as follows: Given an array of n coins, one must
+        determine the right coins to be selected such that the maximum value is 
+        obtained from these coins, subject to the constraint that no two adjacent 
+        coins can be selected.
+        To explore all the possibilites, a binary tree is constructed 
+        where the left branch assumes that the last element of the array is 
+        taken and the right branch assumes that it is not taken. At each branch, 
+        the element considered is removed from the array and its cost is added 
+        to the final resulting cost to be returned. The following recurrence 
+        is used: f(n) = max{C(n - 1) + f(n - 2), f(n - 1)} 
+        where f(0) = 0 and f(1) = 1.
+        This can be implemented as a memoization solution which uses the 
+        same relation but with a memoization table. So instead of the recurrence
+        stack we will have a memoization table that stores the intermediate 
+        results. When this memoization solution is implemented from bottom-up, 
+        it is known as the DP solution. However, to compute only the optimal 
+        value and not the optimal solution, a sliding window can be used. 
+
+    ----------------------------------------------------------------------------
+
+  2.2. Additional static helper functions used (See implementation file for 
+       details): 
+
+    2.2.1. static char* set_intal_zero();
+      
+      Input Parameter(s)  : None
+      Output Return Value : An intal representing the integer zero
+
+    ----------------------------------------------------------------------------
+
+    2.2.2. static char* set_intal_one();
+      
+      Input Parameter(s)  : None
+      Output Return Value : An intal representing the integer one
+
+    ----------------------------------------------------------------------------
+
+    2.2.3. static char* intal_copy(const char *intal);
+      
+      Input Parameter(s)  : An intal
+      Output Return Value : A copy (with new memory allocation) of the input 
+                            intal
+
+    ----------------------------------------------------------------------------
+
+    2.2.4. static int get_value(const char *intal, int len, int index);
+      
+      Input Parameter(s)  : An intal, its length (not including null character) 
+                            and an index position (from the end i.e., 0th index 
+                            is the last digit character)
+      Output Return Value : An int value of the digit character at the input 
+                            index position if 0 <= index < len, otherwise int 0
+
+    ----------------------------------------------------------------------------
+
+    2.2.5. static char* strip_leading_zeroes(char *nintal, int size);
+      
+      Input Parameter(s)  : A possibly invalid intal (nintal) with leading 
+                            zeroes and the size occupied by it (including the 
+                            null character)
+      Output Return Value : A valid intal with leading zeroes removed
+
+    ----------------------------------------------------------------------------
+
+    2.2.6. static char* intal_by_two(const char *intal);
+      
+      Input Parameter(s)  : An intal
+      Output Return Value : An intal representing the input intal divided by 2
+
+    ----------------------------------------------------------------------------
+
+    2.2.7. static void merge(char **arr, int l, int m, int r);
+      
+      Input Parameter(s)  : An (sub)array of intals, and the index positions of 
+                            the leftmost, middle and rightmost elements of the 
+                            sorted (sub)array to be merged
+      Output Return Value : None
+
+    ----------------------------------------------------------------------------
+    
+    2.2.8. static void merge_sort(char **arr, int l, int r);
+      
+      Input Parameter(s)  : An (sub)array of intals, and the index positions of 
+                            the bounding left and right elements which is to be 
+                            sorted and merged
+      Output Return Value : None
+
+    ----------------------------------------------------------------------------
+
+================================================================================
+
+3. FUTURE WORK
+
+  3.1. Additional Functionalities 
+      a) Currently intal can store only non negative integers. We can expand the 
+      implementation to include the negative numbers as well.
+      b) We can improve this library by adding more functionalites like 
+      division, square root, logarithm, etc. The fundamental functions such as 
+      addition, comparison, subtraction and multiplication are already 
+      implemented, which can be used by more complex functions.
+
+  3.2. Different Approaches
+      a) Using linked list, where each node is a digit.
+      b) Using hexadecimal or even higher order bases to represent the numbers, 
+      as it would then require lesser number of characters.
+
+================================================================================
